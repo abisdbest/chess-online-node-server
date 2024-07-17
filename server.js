@@ -20,6 +20,7 @@ app.use(cors());
 // Store moves and positions for each room
 const rooms = {};
 
+// Socket.io connection handling
 io.on('connection', (socket) => {
     console.log('New client connected');
 
@@ -49,6 +50,11 @@ io.on('connection', (socket) => {
     socket.on('disconnect', () => {
         console.log('Client disconnected');
     });
+});
+
+// Add a simple GET route
+app.get('/test', (req, res) => {
+    res.send('test');
 });
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
