@@ -67,7 +67,7 @@ io.on('connection', (socket) => {
         io.to(room).emit('moveUpdate', { move: encodedMove, position, currentPlayer: 2 });
       } else {
         // Send an error to the client because it's not their turn
-        socket.emit('error', 'It's not your turn.');
+        socket.emit('error', 'Its not your turn.');
       }
     }
   });
