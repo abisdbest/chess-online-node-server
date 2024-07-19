@@ -53,24 +53,14 @@ io.on('connection', (socket) => {
     socket.emit('gameState', rooms[room]);
   });
 
-  // Handle new move
-  socket.on('newMove', ({ room, move, position }) => {
-    if (rooms[room]) {
-      // Check if it's the correct player's turn
-      if (rooms[room].currentPlayer === 1) {
-        const encodedMove = encodeMove(move); 
-        rooms[room].moves.push(encodedMove);
-        rooms[room].positions.push(position);
-        rooms[room].currentPlayer = 2; // Switch to player 2's turn
-
-        // Emit the move update with the encoded move
-        io.to(room).emit('moveUpdate', { move: encodedMove, position, currentPlayer: 2 });
-      } else {
-        // Send an error to the client because it's not their turn
-        socket.emit('error', 'Its not your turn.');
-      }
-    }
-  });
+    // Handle new move
+    socket.on('newMove', ({ room, move }) => {
+        if (rooms[room]) {
+            rooms[room].moves.push(move);
+            io.to(room).emit('moveUpdate', { move });
+        }
+    });
+    
 
   // Handle client disconnect
   socket.on('disconnect', () => {
