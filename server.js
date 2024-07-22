@@ -65,6 +65,11 @@ io.on('connection', (socket) => {
   // Handle new move from a player
   socket.on('newMove', ({ room, move }) => {
     const roomData = rooms[room];
+    if (!roomData) {
+      socket.emit('error', 'Room not found');
+      return;
+    }
+
     const currentColor = roomData.players[socket.id];
 
     if (roomData.currentPlayer !== currentColor) {
