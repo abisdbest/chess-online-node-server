@@ -17,60 +17,95 @@ const PORT = process.env.PORT || 3000;
 // Use CORS middleware
 app.use(cors());
 
-// Store moves and positions for each room
-const rooms = {};
+const rooms = {}; // To store room information
 
-// Encoding/Decoding function (adjust as needed)
-function encodeMove(move) {
-  return `${move.from.join(',')}-${move.to.join(',')}`;
-}
-
-function decodeMove(encodedMove) {
-  const [from, to] = encodedMove.split('-');
-  return {
-    from: from.split(',').map(Number),
-    to: to.split(',').map(Number),
+function createRoom(room) {
+  rooms[room] = {
+    players: {}, // Store player information with their color
+    moves: [],    // Store the list of moves
+    currentPlayer: 'white', // Track which player's turn it is
   };
 }
 
-// Socket.io connection handling
+function validateMove(move) {
+  // Add your move validation logic here
+  return true;
+}
+
 io.on('connection', (socket) => {
   console.log('New client connected');
 
-  // Join a room
+  // Handle player joining a room
   socket.on('joinRoom', (room) => {
-    socket.join(room);
-
     if (!rooms[room]) {
-      rooms[room] = {
-        moves: [],
-        positions: [],
-        currentPlayer: 1, // Player 1 starts
-      };
+      createRoom(room);
     }
 
-    // Send current game state to the newly joined client
-    socket.emit('gameState', rooms[room]);
+    const roomData = rooms[room];
+
+    if (Object.keys(roomData.players).length >= 2) {
+      socket.emit('roomFull', 'The room is full');
+      return;
+    }
+
+    const color = Object.keys(roomData.players).length === 0 ? 'white' : 'black';
+    roomData.players[socket.id] = color;
+
+    socket.join(room);
+    socket.emit('colorAssigned', color);
+
+    if (Object.keys(roomData.players).length === 2) {
+      io.to(room).emit('gameStart', { color: roomData.players });
+    }
+
+    // Send the current game state to the newly joined client
+    socket.emit('gameState', roomData);
   });
 
-    // Handle new move
-    socket.on('newMove', ({ room, move }) => {
-        if (rooms[room]) {
-            rooms[room].moves.push(move);
-            io.to(room).emit('moveUpdate', { move });
-        }
-    });
-    
+  // Handle new move from a player
+  socket.on('newMove', ({ room, move }) => {
+    const roomData = rooms[room];
+    const currentColor = roomData.players[socket.id];
+
+    if (roomData.currentPlayer !== currentColor) {
+      socket.emit('notYourTurn', 'It is not your turn');
+      return;
+    }
+
+    // Validate and apply the move
+    if (validateMove(move)) {
+      roomData.moves.push(move);
+      roomData.currentPlayer = currentColor === 'white' ? 'black' : 'white';
+      io.to(room).emit('moveUpdate', { move });
+    }
+  });
 
   // Handle client disconnect
   socket.on('disconnect', () => {
     console.log('Client disconnected');
+    
+    // Handle player disconnection
+    for (const room in rooms) {
+      const roomData = rooms[room];
+      if (roomData.players[socket.id]) {
+        delete roomData.players[socket.id];
+        
+        // Notify other players
+        io.to(room).emit('playerDisconnected', { id: socket.id });
+
+        // If there are no players left, delete the room
+        if (Object.keys(roomData.players).length === 0) {
+          delete rooms[room];
+        }
+        break;
+      }
+    }
   });
 });
 
 // Add a simple GET route
 app.get('/test', (req, res) => {
-  res.send('test V2.0');
+  res.send('test V3.0');
 });
 
 server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
