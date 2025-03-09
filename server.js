@@ -28,7 +28,7 @@ const STARTING_POSITION = [
     ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'],
 ];
 
-// Helper function (move to top-level scope)
+// Helper function
 function notationToCoords(notation) {
     const col = notation.charCodeAt(0) - 'a'.charCodeAt(0);
     const row = 8 - parseInt(notation.slice(1));
@@ -90,6 +90,16 @@ io.on('connection', (socket) => {
         }
     });
 
+    // --- CHAT HANDLING ---
+    socket.on('chatMessage', ({ room, message }) => {
+        if (rooms[room]) {
+            // Send the message ONLY to clients in the specified room.
+            io.to(room).emit('chatMessage', { sender: socket.id, message });
+        } else {
+            console.error(`Room ${room} not found for chat!`);
+            socket.emit("invalidRoom");
+        }
+    });
 
     socket.on('disconnect', () => {
         console.log('Client disconnected', socket.id);
