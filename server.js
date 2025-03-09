@@ -1,4 +1,4 @@
-// server.js
+// server.js (Server) - COMPLETE
 const express = require('express');
 const http = require('http');
 const socketIo = require('socket.io');
@@ -8,13 +8,12 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: '*', // Allow all origins
+    origin: '*',
     methods: ['GET', 'POST'],
   },
 });
 
 const PORT = process.env.PORT || 3000;
-
 app.use(cors());
 
 const rooms = {};
@@ -29,21 +28,23 @@ const STARTING_POSITION = [
     ['R', 'N', 'B', 'Q', 'K', 'B', 'N', 'R'],
 ];
 
+// Helper function (move to top-level scope)
+function notationToCoords(notation) {
+    const col = notation.charCodeAt(0) - 'a'.charCodeAt(0);
+    const row = 8 - parseInt(notation.slice(1));
+    return [row, col];
+}
 
 io.on('connection', (socket) => {
   console.log('New client connected', socket.id);
 
   socket.on('joinRoom', (room) => {
-
-      // Check if the room exists and is full
-      if (rooms[room] && rooms[room].players.length >= 2) {
+    if (rooms[room] && rooms[room].players.length >= 2) {
         socket.emit('roomFull');
         return;
     }
-    // Leave previous room if any
     if (socket.currentRoom) {
         socket.leave(socket.currentRoom);
-          // Notify the other player about the disconnection
         if (rooms[socket.currentRoom]) {
           socket.to(socket.currentRoom).emit('opponentDisconnected');
         }
@@ -52,52 +53,49 @@ io.on('connection', (socket) => {
     socket.join(room);
     socket.currentRoom = room;
 
-     if (!rooms[room]) {
-            rooms[room] = { players: [], board: JSON.parse(JSON.stringify(STARTING_POSITION)) };
-        }
-        rooms[room].players.push(socket.id);
+    if (!rooms[room]) {
+        rooms[room] = { players: [], board: JSON.parse(JSON.stringify(STARTING_POSITION)), currentPlayer: 'white' }; // Initialize currentPlayer
+    }
+    rooms[room].players.push(socket.id);
 
-    const playerColor = rooms[room].players.length === 1 ? 'white' : 'black';  //first to join gets white
-    const isCurrentPlayerTurn = rooms[room].players.length === 1;
+    const playerColor = rooms[room].players.length === 1 ? 'white' : 'black';
+    const isCurrentPlayerTurn = rooms[room].players.length === 1; // White goes first
 
     socket.emit('gameState', {
-          board: rooms[room].board,
-          playerColor,
-          isCurrentPlayerTurn, // Send the turn status
-          room // Send room code
-      });
+        board: rooms[room].board,
+        playerColor,
+        isCurrentPlayerTurn,
+        room
+    });
 
-       console.log(`Client ${socket.id} joined room ${room} as ${playerColor}`);
-
+    console.log(`Client ${socket.id} joined room ${room} as ${playerColor}`);
   });
 
   socket.on('newMove', ({ room, move }) => {
-      if (rooms[room]) {
-          // Update the board state *before* emitting the move
-          const fromCoords = notationToCoords(move.from);
-          const toCoords = notationToCoords(move.to);
-          rooms[room].board[toCoords[0]][toCoords[1]] = rooms[room].board[fromCoords[0]][fromCoords[1]];
-          rooms[room].board[fromCoords[0]][fromCoords[1]] = '';
+        if (rooms[room]) {
+            const fromCoords = notationToCoords(move.from);
+            const toCoords = notationToCoords(move.to);
+            rooms[room].board[toCoords[0]][toCoords[1]] = rooms[room].board[fromCoords[0]][fromCoords[1]];
+            rooms[room].board[fromCoords[0]][fromCoords[1]] = '';
 
+            // Toggle the current player
+            rooms[room].currentPlayer = rooms[room].currentPlayer === 'white' ? 'black' : 'white';
 
-          // Broadcast the move to everyone in the room.
-          io.to(room).emit('moveUpdate', { move });
+            // Broadcast the move AND the current player
+            io.to(room).emit('moveUpdate', { move, currentPlayer: rooms[room].currentPlayer });
 
-      } else {
-          console.error(`Room ${room} not found!`); //should not happen
-          socket.emit("invalidRoom");
-      }
-  });
+        } else {
+            console.error(`Room ${room} not found!`);
+            socket.emit("invalidRoom");
+        }
+    });
 
 
     socket.on('disconnect', () => {
         console.log('Client disconnected', socket.id);
       if (socket.currentRoom && rooms[socket.currentRoom]) {
         rooms[socket.currentRoom].players = rooms[socket.currentRoom].players.filter(id => id !== socket.id);
-         // Notify the other player in the room
          socket.to(socket.currentRoom).emit('opponentDisconnected');
-
-          // Clean up the room if it's empty
         if (rooms[socket.currentRoom].players.length === 0) {
             delete rooms[socket.currentRoom];
         }
@@ -110,25 +108,13 @@ io.on('connection', (socket) => {
 
         if (rooms[room]) {
             rooms[room].players = rooms[room].players.filter(id => id !== socket.id);
-             // Notify other player in the room
             socket.to(room).emit('opponentDisconnected');
-
-              // Clean up the room if it is empty
             if(rooms[room].players.length === 0){
                 delete rooms[room]
             }
         }
     });
-
-      // Helper function (move to top-level scope)
-      function notationToCoords(notation) {
-        const col = notation.charCodeAt(0) - 'a'.charCodeAt(0);
-        const row = 8 - parseInt(notation.slice(1));
-        return [row, col];
-    }
-
 });
-
 
 app.get('/test', (req, res) => {
   res.send('test V3.0');
