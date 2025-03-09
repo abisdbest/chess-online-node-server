@@ -54,7 +54,8 @@ io.on('connection', (socket) => {
     socket.currentRoom = room;
 
     if (!rooms[room]) {
-        rooms[room] = { players: [], board: JSON.parse(JSON.stringify(STARTING_POSITION)), currentPlayer: 'white' }; // Initialize currentPlayer
+        // Initialize chat history for the room
+        rooms[room] = { players: [], board: JSON.parse(JSON.stringify(STARTING_POSITION)), currentPlayer: 'white', chatHistory: [] };
     }
     rooms[room].players.push(socket.id);
 
@@ -93,12 +94,23 @@ io.on('connection', (socket) => {
     // --- CHAT HANDLING ---
     socket.on('chatMessage', ({ room, message }) => {
         if (rooms[room]) {
-            // Send the message ONLY to clients in the specified room.
-            io.to(room).emit('chatMessage', { sender: socket.id, message });
+            const chatEntry = { sender: socket.id, message };
+            rooms[room].chatHistory.push(chatEntry); // Store the message
+            io.to(room).emit('chatMessage', chatEntry);
         } else {
             console.error(`Room ${room} not found for chat!`);
             socket.emit("invalidRoom");
         }
+    });
+
+    // New event handler for chat history requests
+    socket.on('requestChatHistory', (room) => {
+      if (rooms[room]) {
+        socket.emit('chatHistory', rooms[room].chatHistory);
+      } else {
+        console.error(`Room ${room} not found for chat history request!`);
+        socket.emit("invalidRoom"); // Or a specific "no history" event
+      }
     });
 
     socket.on('disconnect', () => {
