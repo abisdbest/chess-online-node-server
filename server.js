@@ -59,8 +59,16 @@ io.on('connection', (socket) => {
     }
     rooms[room].players.push(socket.id);
 
-    const playerColor = rooms[room].players.length === 1 ? 'white' : 'black';
-    const isCurrentPlayerTurn = rooms[room].players.length === 1; // White goes first
+    let playerColor;
+    let isCurrentPlayerTurn;
+
+    if (rooms[room].players.length === 1) {
+        playerColor = 'white';
+        isCurrentPlayerTurn = true;
+    } else {
+        playerColor = 'black';
+        isCurrentPlayerTurn = false;
+    }
 
     socket.emit('gameState', {
         board: rooms[room].board,
